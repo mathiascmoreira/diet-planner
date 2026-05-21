@@ -26,11 +26,19 @@
       <!-- Injetado via JS -->
     </section>
 
-    <!-- Gerenciador do Banco de Alimentos -->
-    <section class="food-db-section">
+    <!-- Botão para abrir o painel de alimentos -->
+    <div class="db-toggle-container">
+      <button class="btn-secondary" onclick="toggleFoodDB()">⚙️ Gerenciar Banco de Alimentos</button>
+    </div>
+
+    <!-- Gerenciador do Banco de Alimentos (Oculto por padrão) -->
+    <section class="food-db-section" id="food-db-section" style="display: none;">
       <div class="meal-header">
         <h2>Banco de Alimentos Personalizado</h2>
-        <button class="btn-primary" onclick="openFoodModal()">+ Novo Alimento</button>
+        <div>
+          <button class="btn-primary" onclick="openFoodModal()">+ Novo Alimento</button>
+          <button class="btn-secondary" onclick="toggleFoodDB()">Salvar e Ocultar</button>
+        </div>
       </div>
       <div id="food-db-container">
         <!-- Tabela de alimentos injetada via JS -->

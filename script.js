@@ -8,18 +8,15 @@ const defaultFoodDB = [
   { id: 6, name: "Leite", unit: "mL", referenceAmount: 100, protein: 3.2, carbs: 4.7, fats: 3.2, calories: 60  },
 ];
 
-// 2. Estado Global & LocalStorage
 let foodDB = JSON.parse(localStorage.getItem('dietApp_foods')) || defaultFoodDB;
 let meals = JSON.parse(localStorage.getItem('dietApp_meals')) || {};
 let currentMeal = null; 
 
-// Função para salvar tudo no LocalStorage
 function saveData() {
   localStorage.setItem('dietApp_foods', JSON.stringify(foodDB));
   localStorage.setItem('dietApp_meals', JSON.stringify(meals));
 }
 
-// Inicialização
 document.addEventListener("DOMContentLoaded", () => {
   renderApp();
   renderFoodDB();
@@ -68,7 +65,6 @@ function editSectionName(oldName) {
   if (!newName || newName.trim() === "" || newName === oldName) return;
   if (meals[newName]) return alert("Já existe uma refeição com esse nome.");
 
-  // Copia os dados para a nova chave e deleta a antiga
   meals[newName] = meals[oldName];
   delete meals[oldName];
   saveData();
@@ -76,7 +72,7 @@ function editSectionName(oldName) {
 }
 
 // ==========================================
-// ITENS DA REFEIÇÃO (MODAL E CÁLCULOS)
+// ITENS DA REFEIÇÃO
 // ==========================================
 
 function populateFoodDropdown() {
@@ -85,9 +81,7 @@ function populateFoodDropdown() {
     `<option value="${f.id}">${f.name} (por ${f.referenceAmount}${f.unit})</option>`
   ).join("");
   
-  if(foodDB.length > 0) {
-    document.getElementById("unit-label").innerText = foodDB[0].unit;
-  }
+  if(foodDB.length > 0) document.getElementById("unit-label").innerText = foodDB[0].unit;
 }
 
 function openModal(mealName, editIndex = -1) {
@@ -125,14 +119,9 @@ function saveItem() {
   const ratio = qty / food.referenceAmount;
 
   const entry = {
-    foodId: food.id,
-    name: food.name,
-    quantity: qty,
-    unit: food.unit,
-    protein: food.protein * ratio,
-    carbs: food.carbs * ratio,
-    fats: food.fats * ratio,
-    calories: food.calories * ratio
+    foodId: food.id, name: food.name, quantity: qty, unit: food.unit,
+    protein: food.protein * ratio, carbs: food.carbs * ratio,
+    fats: food.fats * ratio, calories: food.calories * ratio
   };
 
   if (editIndex > -1) meals[currentMeal][editIndex] = entry;
@@ -150,8 +139,19 @@ function deleteItem(mealName, index) {
 }
 
 // ==========================================
-// BANCO DE ALIMENTOS (CRUD)
+// BANCO DE ALIMENTOS (CRUD E EXIBIÇÃO)
 // ==========================================
+
+// Alterna a visibilidade da seção de edição do banco de dados
+function toggleFoodDB() {
+  const section = document.getElementById("food-db-section");
+  if (section.style.display === "none") {
+    section.style.display = "block";
+    renderFoodDB(); // Garante que a tabela está atualizada ao abrir
+  } else {
+    section.style.display = "none";
+  }
+}
 
 function openFoodModal(editIndex = -1) {
   document.getElementById("food-modal-title").innerText = editIndex > -1 ? "Editar Alimento" : "Novo Alimento";
@@ -195,7 +195,7 @@ function saveFoodDB() {
   }
 
   const newFood = {
-    id: editIndex > -1 ? foodDB[editIndex].id : Date.now(), // Gera ID único
+    id: editIndex > -1 ? foodDB[editIndex].id : Date.now(),
     name, unit, referenceAmount: ref, protein: prot, carbs: carb, fats: fat, calories: cal
   };
 
