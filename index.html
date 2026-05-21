@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Overlay de Carregamento (Spinner) -->
+  <div id="loading-spinner" class="spinner-overlay" style="display: none;">
+    <div class="spinner"></div>
+  </div>
+
   <div class="app-container">
     <header>
       <h1>Planejador de Dieta Diário</h1>
@@ -22,9 +27,7 @@
     <main id="meals-container"></main>
     
     <!-- Totais Gerais -->
-    <section class="grand-total-section" id="grand-total-section">
-      <!-- Injetado via JS -->
-    </section>
+    <section class="grand-total-section" id="grand-total-section"></section>
 
     <!-- Botão para abrir o painel de alimentos -->
     <div class="db-toggle-container">
@@ -35,9 +38,9 @@
     <section class="food-db-section" id="food-db-section" style="display: none;">
       <div class="meal-header">
         <h2>Banco de Alimentos Personalizado</h2>
-        <div>
+        <div class="meal-actions">
           <button class="btn-primary" onclick="openFoodModal()">+ Novo Alimento</button>
-          <button class="btn-secondary" onclick="toggleFoodDB()">Salvar e Ocultar</button>
+          <button class="btn-secondary" onclick="toggleFoodDB()">Ocultar</button>
         </div>
       </div>
       <div id="food-db-container">
@@ -63,7 +66,7 @@
       </div>
       
       <input type="hidden" id="edit-index" value="-1">
-      <button onclick="saveItem()" class="btn-primary">Salvar Alimento na Refeição</button>
+      <button onclick="saveItem()" class="btn-primary" style="width: 100%;">Salvar Alimento na Refeição</button>
     </div>
   </div>
 
@@ -77,12 +80,12 @@
         <label>Nome do Alimento:</label>
         <input type="text" id="db-food-name" placeholder="Ex: Batata Doce">
       </div>
-      <div class="form-group" style="display: flex; gap: 10px;">
-        <div style="flex: 1;">
+      <div class="form-group row-group">
+        <div class="col-group">
           <label>Qtd. Referência:</label>
           <input type="number" id="db-food-ref" value="100" min="1">
         </div>
-        <div style="flex: 1;">
+        <div class="col-group">
           <label>Unidade:</label>
           <select id="db-food-unit">
             <option value="g">Gramas (g)</option>
@@ -91,25 +94,29 @@
           </select>
         </div>
       </div>
-      <div class="form-group">
-        <label>Proteína (g):</label>
-        <input type="number" id="db-food-prot" step="0.1" value="0">
+      <div class="form-group row-group">
+        <div class="col-group">
+          <label>Proteína (g):</label>
+          <input type="number" id="db-food-prot" step="0.1" value="0">
+        </div>
+        <div class="col-group">
+          <label>Carbos (g):</label>
+          <input type="number" id="db-food-carb" step="0.1" value="0">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Carboidratos (g):</label>
-        <input type="number" id="db-food-carb" step="0.1" value="0">
-      </div>
-      <div class="form-group">
-        <label>Gorduras (g):</label>
-        <input type="number" id="db-food-fat" step="0.1" value="0">
-      </div>
-      <div class="form-group">
-        <label>Calorias (kcal):</label>
-        <input type="number" id="db-food-cal" step="1" value="0">
+      <div class="form-group row-group">
+        <div class="col-group">
+          <label>Gorduras (g):</label>
+          <input type="number" id="db-food-fat" step="0.1" value="0">
+        </div>
+        <div class="col-group">
+          <label>Kcal:</label>
+          <input type="number" id="db-food-cal" step="1" value="0">
+        </div>
       </div>
       
       <input type="hidden" id="db-edit-index" value="-1">
-      <button onclick="saveFoodDB()" class="btn-primary">Salvar no Banco</button>
+      <button onclick="saveFoodDB()" class="btn-primary" style="width: 100%;">Salvar no Banco</button>
     </div>
   </div>
 

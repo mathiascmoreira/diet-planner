@@ -1,5 +1,5 @@
 // ==========================================
-// CONFIGURAÇÕES DO SUPABASE
+// CONFIGURAÇÕES DO SUPABASE E SPINNER
 // ==========================================
 const SUPABASE_URL = 'https://pfgoavahnkcdiazwqhrp.supabase.co/rest/v1';
 const SUPABASE_KEY = 'sb_publishable_ewsjcrQisrjN6P1k5Eez9g_lXglk6u3';
@@ -8,8 +8,16 @@ const HEADERS = {
   'apikey': SUPABASE_KEY,
   'Authorization': `Bearer ${SUPABASE_KEY}`,
   'Content-Type': 'application/json',
-  'Prefer': 'return=representation' // Retorna os dados após insert/update
+  'Prefer': 'return=representation'
 };
+
+function showSpinner() {
+  document.getElementById('loading-spinner').style.display = 'flex';
+}
+
+function hideSpinner() {
+  document.getElementById('loading-spinner').style.display = 'none';
+}
 
 // ==========================================
 // ESTADO GLOBAL
@@ -21,6 +29,7 @@ let currentMealId = null;
 
 // Função auxiliar para fazer requisições à API
 async function apiRequest(endpoint, method = 'GET', body = null) {
+  showSpinner(); // Mostra o spinner antes da requisição
   const options = { method, headers: HEADERS };
   if (body) options.body = JSON.stringify(body);
   
@@ -28,7 +37,6 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     const response = await fetch(`${SUPABASE_URL}${endpoint}`, options);
     if (!response.ok) throw new Error(await response.text());
     
-    // Se for GET ou tiver Prefer: return=representation, tenta extrair o JSON
     if (method === 'GET' || response.headers.get('content-length') !== '0') {
       const text = await response.text();
       return text ? JSON.parse(text) : null;
@@ -37,6 +45,8 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   } catch (error) {
     console.error("Erro na API:", error);
     alert("Ocorreu um erro ao comunicar com o banco de dados.");
+  } finally {
+    hideSpinner(); // Esconde o spinner sempre que a requisição terminar
   }
 }
 
@@ -61,12 +71,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadData() {
-  // Busca todas as tabelas em paralelo
   foodDB = await apiRequest('/foods?order=name.asc') || [];
   mealsDB = await apiRequest('/meals?order=id.asc') || [];
   mealItemsDB = await apiRequest('/meal_items') || [];
 
-  // Se o banco de alimentos estiver vazio, semeia os dados padrão
   if (foodDB.length === 0) {
     await seedDefaultFoods();
   } else {
@@ -85,11 +93,11 @@ async function seedDefaultFoods() {
     { name: "Ovos Inteiros", unit: "un", reference_amount: 1, protein: 6, carbs: 0.5, fats: 5, calories: 70 }
   ];
   await apiRequest('/foods', 'POST', defaultFoods);
-  await loadData(); // Recarrega após inserir
+  await loadData();
 }
 
 // ==========================================
-// SEÇÕES DE REFEIÇÕES (CRUD API)
+// SEÇÕES DE REFEIÇÕES
 // ==========================================
 async function addSection() {
   const inputEl = document.getElementById("new-section-name");
@@ -106,38 +114,35 @@ async function addSection() {
 }
 
 async function deleteSection(id, mealName) {
-  if (confirm(`Tem certeza que deseja excluir "${mealName}"? Todos os itens serão apagados.`)) {
+  if (confirm(`Tem certeza que deseja excluir "${mealName}"?`)) {
     await apiRequest(`/meals?id=eq.${id}`, 'DELETE');
     await loadData();
   }
 }
 
 async function editSectionName(id, oldName) {
-  const newName = prompt("Digite o novo nome da refeição:", oldName);
+  const newName = prompt("Digite o novo nome:", oldName);
   if (!newName || newName.trim() === "" || newName === oldName) return;
   if (mealsDB.some(m => m.name.toLowerCase() === newName.toLowerCase())) {
     return alert("Já existe uma refeição com esse nome.");
   }
-
   await apiRequest(`/meals?id=eq.${id}`, 'PATCH', { name: newName });
   await loadData();
 }
 
 // ==========================================
-// ITENS DA REFEIÇÃO (MODAL E CRUD API)
+// ITENS DA REFEIÇÃO (MODAL)
 // ==========================================
 function populateFoodDropdown() {
   const select = document.getElementById("food-select");
   select.innerHTML = foodDB.map(f => 
     `<option value="${f.id}">${f.name} (por ${f.reference_amount}${f.unit})</option>`
   ).join("");
-  
   if (foodDB.length > 0) document.getElementById("unit-label").innerText = foodDB[0].unit;
 }
 
 function openModal(mealId, itemId = null) {
-  if (foodDB.length === 0) return alert("O banco de alimentos está vazio.");
-  
+  if (foodDB.length === 0) return alert("O banco está vazio.");
   populateFoodDropdown();
   currentMealId = mealId;
   const meal = mealsDB.find(m => m.id === mealId);
@@ -155,7 +160,6 @@ function openModal(mealId, itemId = null) {
     document.getElementById("food-select").selectedIndex = 0;
     document.getElementById("food-qty").value = foodDB[0].reference_amount;
   }
-  
   document.getElementById("add-item-modal").style.display = "block";
 }
 
@@ -167,28 +171,24 @@ async function saveItem() {
   const itemId = document.getElementById("edit-index").value;
   
   if (!qty || qty <= 0) return alert("Insira uma quantidade válida.");
-
   const payload = { meal_id: currentMealId, food_id: foodId, quantity: qty };
 
-  if (itemId) {
-    await apiRequest(`/meal_items?id=eq.${itemId}`, 'PATCH', payload);
-  } else {
-    await apiRequest(`/meal_items`, 'POST', payload);
-  }
+  if (itemId) await apiRequest(`/meal_items?id=eq.${itemId}`, 'PATCH', payload);
+  else await apiRequest(`/meal_items`, 'POST', payload);
 
   closeModal();
   await loadData();
 }
 
 async function deleteItem(itemId) {
-  if (confirm("Remover este item da refeição?")) {
+  if (confirm("Remover este item?")) {
     await apiRequest(`/meal_items?id=eq.${itemId}`, 'DELETE');
     await loadData();
   }
 }
 
 // ==========================================
-// BANCO DE ALIMENTOS (CRUD API)
+// BANCO DE ALIMENTOS
 // ==========================================
 function toggleFoodDB() {
   const section = document.getElementById("food-db-section");
@@ -216,7 +216,6 @@ function openFoodModal(foodId = null) {
     document.getElementById("db-food-fat").value = 0;
     document.getElementById("db-food-cal").value = 0;
   }
-  
   document.getElementById("food-modal").style.display = "block";
 }
 
@@ -235,55 +234,42 @@ async function saveFoodDB() {
   if (!name || isNaN(ref) || isNaN(prot) || isNaN(carb) || isNaN(fat) || isNaN(cal)) {
     return alert("Preencha todos os campos corretamente.");
   }
+  const payload = { name, unit, reference_amount: ref, protein: prot, carbs: carb, fats: fat, calories: cal };
 
-  const payload = {
-    name, unit, reference_amount: ref, protein: prot, carbs: carb, fats: fat, calories: cal
-  };
-
-  if (foodId) {
-    await apiRequest(`/foods?id=eq.${foodId}`, 'PATCH', payload);
-  } else {
-    await apiRequest(`/foods`, 'POST', payload);
-  }
+  if (foodId) await apiRequest(`/foods?id=eq.${foodId}`, 'PATCH', payload);
+  else await apiRequest(`/foods`, 'POST', payload);
 
   closeFoodModal();
   await loadData();
 }
 
 async function deleteFood(foodId, foodName) {
-  // Verifica se o alimento está em uso nas refeições
-  const inUse = mealItemsDB.some(mi => mi.food_id === foodId);
-  if (inUse) {
-    return alert(`Não é possível excluir "${foodName}" porque ele está sendo usado em uma refeição.`);
+  if (mealItemsDB.some(mi => mi.food_id === foodId)) {
+    return alert(`"${foodName}" está sendo usado em uma refeição.`);
   }
-
-  if (confirm(`Excluir "${foodName}" do banco de dados?`)) {
+  if (confirm(`Excluir "${foodName}"?`)) {
     await apiRequest(`/foods?id=eq.${foodId}`, 'DELETE');
     await loadData();
   }
 }
 
 // ==========================================
-// RENDERIZAÇÃO PRINCIPAL (UI e Matemática)
+// RENDERIZAÇÃO PRINCIPAL
 // ==========================================
 function formatNum(num) { return parseFloat(num).toFixed(1); }
 
 function renderFoodDB() {
   const container = document.getElementById("food-db-container");
-  
   if (foodDB.length === 0) {
-    container.innerHTML = `<div class="empty-state">Banco de alimentos vazio.</div>`;
+    container.innerHTML = `<div class="empty-state">Banco vazio.</div>`;
     return;
   }
 
-  let html = `<table>
-      <thead>
-        <tr><th>Alimento</th><th>Ref.</th><th>Prot</th><th>Carb</th><th>Gord</th><th>Kcal</th><th>Ações</th></tr>
-      </thead><tbody>`;
+  let html = `<div class="table-responsive"><table>
+      <thead><tr><th>Alimento</th><th>Ref.</th><th>Prot</th><th>Carb</th><th>Gord</th><th>Kcal</th><th>Ações</th></tr></thead><tbody>`;
 
   foodDB.forEach((food) => {
-    html += `
-      <tr>
+    html += `<tr>
         <td><strong>${food.name}</strong></td>
         <td>${food.reference_amount}${food.unit}</td>
         <td>${food.protein}g</td>
@@ -296,8 +282,7 @@ function renderFoodDB() {
         </td>
       </tr>`;
   });
-
-  html += `</tbody></table>`;
+  html += `</tbody></table></div>`;
   container.innerHTML = html;
 }
 
@@ -307,14 +292,13 @@ function renderApp() {
   let grandTotals = { protein: 0, carbs: 0, fats: 0, calories: 0 };
 
   if (mealsDB.length === 0) {
-    container.innerHTML = `<div class="empty-state">Nenhuma refeição criada. Adicione uma refeição acima para começar.</div>`;
+    container.innerHTML = `<div class="empty-state">Adicione uma refeição acima para começar.</div>`;
     document.getElementById("grand-total-section").innerHTML = "";
     return;
   }
 
   mealsDB.forEach(meal => {
     let subTotals = { protein: 0, carbs: 0, fats: 0, calories: 0 };
-    
     let html = `
       <div class="meal-section">
         <div class="meal-header">
@@ -325,18 +309,17 @@ function renderApp() {
             <button class="btn-danger" onclick="deleteSection(${meal.id}, '${meal.name}')">Excluir</button>
           </div>
         </div>
-        <table>
-          <thead>
-            <tr><th>Alimento</th><th>Qtd</th><th>Proteína</th><th>Carbos</th><th>Gordura</th><th>Calorias</th><th>Ações</th></tr>
-          </thead>
-          <tbody>`;
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr><th>Alimento</th><th>Qtd</th><th>Proteína</th><th>Carbos</th><th>Gordura</th><th>Calorias</th><th>Ações</th></tr>
+            </thead>
+            <tbody>`;
 
-    // Filtra os itens desta refeição e faz os cálculos
     const items = mealItemsDB.filter(mi => mi.meal_id === meal.id);
-    
     items.forEach(item => {
       const food = foodDB.find(f => f.id === item.food_id);
-      if (!food) return; // Segurança caso o alimento não exista
+      if (!food) return;
 
       const ratio = item.quantity / food.reference_amount;
       const prot = food.protein * ratio;
@@ -344,13 +327,10 @@ function renderApp() {
       const fat = food.fats * ratio;
       const cal = food.calories * ratio;
 
-      subTotals.protein += prot;
-      subTotals.carbs += carb;
-      subTotals.fats += fat;
-      subTotals.calories += cal;
+      subTotals.protein += prot; subTotals.carbs += carb;
+      subTotals.fats += fat; subTotals.calories += cal;
 
-      html += `
-        <tr>
+      html += `<tr>
           <td>${food.name}</td>
           <td>${item.quantity}${food.unit}</td>
           <td>${formatNum(prot)}g</td>
@@ -364,32 +344,26 @@ function renderApp() {
         </tr>`;
     });
 
-    html += `
-          <tr class="subtotal">
+    html += `<tr class="subtotal">
             <td colspan="2">Subtotal</td>
             <td>${formatNum(subTotals.protein)}g</td>
             <td>${formatNum(subTotals.carbs)}g</td>
             <td>${formatNum(subTotals.fats)}g</td>
             <td>${formatNum(subTotals.calories)}kcal</td>
             <td></td>
-          </tr>
-          </tbody>
-        </table>
-      </div>`;
+          </tr></tbody></table></div></div>`;
 
-    grandTotals.protein += subTotals.protein;
-    grandTotals.carbs += subTotals.carbs;
-    grandTotals.fats += subTotals.fats;
-    grandTotals.calories += subTotals.calories;
+    grandTotals.protein += subTotals.protein; grandTotals.carbs += subTotals.carbs;
+    grandTotals.fats += subTotals.fats; grandTotals.calories += subTotals.calories;
     container.innerHTML += html;
   });
 
   document.getElementById("grand-total-section").innerHTML = `
     <h2>Total Geral Diário</h2>
     <p>
-       <strong>Proteína:</strong> ${formatNum(grandTotals.protein)}g &nbsp;|&nbsp; 
-       <strong>Carboidratos:</strong> ${formatNum(grandTotals.carbs)}g &nbsp;|&nbsp; 
-       <strong>Gorduras:</strong> ${formatNum(grandTotals.fats)}g &nbsp;|&nbsp; 
-       <strong>Calorias:</strong> ${formatNum(grandTotals.calories)}kcal
+       <span><strong>Proteína:</strong> ${formatNum(grandTotals.protein)}g | </span>
+       <span><strong>Carbos:</strong> ${formatNum(grandTotals.carbs)}g | </span>
+       <span><strong>Gorduras:</strong> ${formatNum(grandTotals.fats)}g | </span>
+       <span><strong>Calorias:</strong> ${formatNum(grandTotals.calories)}kcal</span>
     </p>`;
 }
