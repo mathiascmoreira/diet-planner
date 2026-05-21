@@ -142,12 +142,11 @@ function deleteItem(mealName, index) {
 // BANCO DE ALIMENTOS (CRUD E EXIBIÇÃO)
 // ==========================================
 
-// Alterna a visibilidade da seção de edição do banco de dados
 function toggleFoodDB() {
   const section = document.getElementById("food-db-section");
   if (section.style.display === "none") {
     section.style.display = "block";
-    renderFoodDB(); // Garante que a tabela está atualizada ao abrir
+    renderFoodDB(); 
   } else {
     section.style.display = "none";
   }
@@ -180,6 +179,29 @@ function openFoodModal(editIndex = -1) {
 
 function closeFoodModal() { document.getElementById("food-modal").style.display = "none"; }
 
+// NOVA FUNÇÃO: Recalcula os itens já adicionados nas refeições quando um alimento do banco é atualizado
+function syncMealsWithFoodDB(updatedFood) {
+  for (const mealName in meals) {
+    meals[mealName] = meals[mealName].map(item => {
+      if (item.foodId === updatedFood.id) {
+        // Se achou um item na dieta que pertence a este alimento editado, recalcula a proporção
+        const ratio = item.quantity / updatedFood.referenceAmount;
+        return {
+          ...item,
+          name: updatedFood.name, // Atualiza o nome (caso o usuário tenha mudado no BD)
+          unit: updatedFood.unit, // Atualiza a unidade
+          protein: updatedFood.protein * ratio,
+          carbs: updatedFood.carbs * ratio,
+          fats: updatedFood.fats * ratio,
+          calories: updatedFood.calories * ratio
+        };
+      }
+      return item;
+    });
+  }
+  renderApp(); // Atualiza a tela de refeições imediatamente
+}
+
 function saveFoodDB() {
   const name = document.getElementById("db-food-name").value.trim();
   const ref = parseFloat(document.getElementById("db-food-ref").value);
@@ -199,8 +221,12 @@ function saveFoodDB() {
     name, unit, referenceAmount: ref, protein: prot, carbs: carb, fats: fat, calories: cal
   };
 
-  if (editIndex > -1) foodDB[editIndex] = newFood;
-  else foodDB.push(newFood);
+  if (editIndex > -1) {
+    foodDB[editIndex] = newFood;
+    syncMealsWithFoodDB(newFood); // Aciona a sincronização das refeições existentes
+  } else {
+    foodDB.push(newFood);
+  }
 
   saveData();
   closeFoodModal();
@@ -208,7 +234,7 @@ function saveFoodDB() {
 }
 
 function deleteFood(index) {
-  if (confirm(`Excluir "${foodDB[index].name}" do banco de dados?`)) {
+  if (confirm(`Excluir "${foodDB[index].name}" do banco de dados? Os itens que já estão nas refeições não serão removidos automaticamente.`)) {
     foodDB.splice(index, 1);
     saveData();
     renderFoodDB();
