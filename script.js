@@ -1,30 +1,55 @@
-// 1. Banco de Dados Padrão (Usado caso o localStorage esteja vazio)
-const defaultFoodDB = [
-  { id: 1, name: "Ovo", unit: "", referenceAmount: 1, protein: 6, carbs: 0.5, fats: 5, calories: 75 },
-  { id: 2, name: "Peito de Frango", unit: "g", referenceAmount: 100, protein: 26, carbs: 0, fats: 3, calories: 160  },  
-  { id: 3, name: "Proteína Evilha Grouth", unit: "doses", referenceAmount: 1, protein: 24, carbs: 1.5, fats: 3, calories: 128  }, 
-  { id: 4, name: "Aveia", unit: "g", referenceAmount: 30, protein: 4.8, carbs: 17, fats: 2, calories: 102  },
-  { id: 5, name: "Pão Integral", unit: "fatias", referenceAmount: 1, protein: 2, carbs: 10, fats: 1, calories: 60  },
-  { id: 6, name: "Leite", unit: "mL", referenceAmount: 100, protein: 3.2, carbs: 4.7, fats: 3.2, calories: 60  },
-];
+// ==========================================
+// CONFIGURAÇÕES DO SUPABASE
+// ==========================================
+const SUPABASE_URL = 'https://pfgoavahnkcdiazwqhrp.supabase.co/rest/v1';
+const SUPABASE_KEY = 'sb_publishable_ewsjcrQisrjN6P1k5Eez9g_lXglk6u3';
 
-let foodDB = JSON.parse(localStorage.getItem('dietApp_foods')) || defaultFoodDB;
-let meals = JSON.parse(localStorage.getItem('dietApp_meals')) || {};
-let currentMeal = null; 
+const HEADERS = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+  'Prefer': 'return=representation' // Retorna os dados após insert/update
+};
 
-function saveData() {
-  localStorage.setItem('dietApp_foods', JSON.stringify(foodDB));
-  localStorage.setItem('dietApp_meals', JSON.stringify(meals));
+// ==========================================
+// ESTADO GLOBAL
+// ==========================================
+let foodDB = [];
+let mealsDB = [];
+let mealItemsDB = [];
+let currentMealId = null;
+
+// Função auxiliar para fazer requisições à API
+async function apiRequest(endpoint, method = 'GET', body = null) {
+  const options = { method, headers: HEADERS };
+  if (body) options.body = JSON.stringify(body);
+  
+  try {
+    const response = await fetch(`${SUPABASE_URL}${endpoint}`, options);
+    if (!response.ok) throw new Error(await response.text());
+    
+    // Se for GET ou tiver Prefer: return=representation, tenta extrair o JSON
+    if (method === 'GET' || response.headers.get('content-length') !== '0') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return null;
+  } catch (error) {
+    console.error("Erro na API:", error);
+    alert("Ocorreu um erro ao comunicar com o banco de dados.");
+  }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  renderApp();
-  renderFoodDB();
+// ==========================================
+// INICIALIZAÇÃO E CARREGAMENTO
+// ==========================================
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadData();
   
   document.getElementById("food-select").addEventListener("change", (e) => {
     const foodId = parseInt(e.target.value);
     const food = foodDB.find(f => f.id === foodId);
-    if(food) document.getElementById("unit-label").innerText = food.unit;
+    if (food) document.getElementById("unit-label").innerText = food.unit;
   });
 
   document.getElementById("new-section-name").addEventListener("keypress", function(event) {
@@ -35,72 +60,100 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// ==========================================
-// SEÇÕES DE REFEIÇÕES (CRUD)
-// ==========================================
+async function loadData() {
+  // Busca todas as tabelas em paralelo
+  foodDB = await apiRequest('/foods?order=name.asc') || [];
+  mealsDB = await apiRequest('/meals?order=id.asc') || [];
+  mealItemsDB = await apiRequest('/meal_items') || [];
 
-function addSection() {
+  // Se o banco de alimentos estiver vazio, semeia os dados padrão
+  if (foodDB.length === 0) {
+    await seedDefaultFoods();
+  } else {
+    renderApp();
+    renderFoodDB();
+  }
+}
+
+async function seedDefaultFoods() {
+  const defaultFoods = [
+    { name: "Peito de Frango", unit: "g", reference_amount: 100, protein: 31, carbs: 0, fats: 3.6, calories: 165 },
+    { name: "Arroz Branco", unit: "g", reference_amount: 100, protein: 2.7, carbs: 28, fats: 0.3, calories: 130 },
+    { name: "Azeite de Oliva", unit: "ml", reference_amount: 15, protein: 0, carbs: 0, fats: 14, calories: 119 },
+    { name: "Brócolis", unit: "g", reference_amount: 100, protein: 2.8, carbs: 7, fats: 0.4, calories: 34 },
+    { name: "Aveia em Flocos", unit: "g", reference_amount: 100, protein: 16.9, carbs: 66.3, fats: 6.9, calories: 389 },
+    { name: "Ovos Inteiros", unit: "un", reference_amount: 1, protein: 6, carbs: 0.5, fats: 5, calories: 70 }
+  ];
+  await apiRequest('/foods', 'POST', defaultFoods);
+  await loadData(); // Recarrega após inserir
+}
+
+// ==========================================
+// SEÇÕES DE REFEIÇÕES (CRUD API)
+// ==========================================
+async function addSection() {
   const inputEl = document.getElementById("new-section-name");
   const sectionName = inputEl.value.trim();
 
   if (!sectionName) return alert("Digite um nome para a refeição.");
-  if (meals[sectionName]) return alert("Uma refeição com este nome já existe!");
+  if (mealsDB.some(m => m.name.toLowerCase() === sectionName.toLowerCase())) {
+    return alert("Uma refeição com este nome já existe!");
+  }
 
-  meals[sectionName] = []; 
+  await apiRequest('/meals', 'POST', { name: sectionName });
   inputEl.value = ""; 
-  saveData();
-  renderApp();
+  await loadData();
 }
 
-function deleteSection(mealName) {
-  if (confirm(`Tem certeza que deseja excluir "${mealName}"?`)) {
-    delete meals[mealName];
-    saveData();
-    renderApp();
+async function deleteSection(id, mealName) {
+  if (confirm(`Tem certeza que deseja excluir "${mealName}"? Todos os itens serão apagados.`)) {
+    await apiRequest(`/meals?id=eq.${id}`, 'DELETE');
+    await loadData();
   }
 }
 
-function editSectionName(oldName) {
+async function editSectionName(id, oldName) {
   const newName = prompt("Digite o novo nome da refeição:", oldName);
   if (!newName || newName.trim() === "" || newName === oldName) return;
-  if (meals[newName]) return alert("Já existe uma refeição com esse nome.");
+  if (mealsDB.some(m => m.name.toLowerCase() === newName.toLowerCase())) {
+    return alert("Já existe uma refeição com esse nome.");
+  }
 
-  meals[newName] = meals[oldName];
-  delete meals[oldName];
-  saveData();
-  renderApp();
+  await apiRequest(`/meals?id=eq.${id}`, 'PATCH', { name: newName });
+  await loadData();
 }
 
 // ==========================================
-// ITENS DA REFEIÇÃO
+// ITENS DA REFEIÇÃO (MODAL E CRUD API)
 // ==========================================
-
 function populateFoodDropdown() {
   const select = document.getElementById("food-select");
   select.innerHTML = foodDB.map(f => 
-    `<option value="${f.id}">${f.name} (por ${f.referenceAmount}${f.unit})</option>`
+    `<option value="${f.id}">${f.name} (por ${f.reference_amount}${f.unit})</option>`
   ).join("");
   
-  if(foodDB.length > 0) document.getElementById("unit-label").innerText = foodDB[0].unit;
+  if (foodDB.length > 0) document.getElementById("unit-label").innerText = foodDB[0].unit;
 }
 
-function openModal(mealName, editIndex = -1) {
-  if (foodDB.length === 0) return alert("O banco de alimentos está vazio. Adicione alimentos primeiro!");
+function openModal(mealId, itemId = null) {
+  if (foodDB.length === 0) return alert("O banco de alimentos está vazio.");
   
   populateFoodDropdown();
-  currentMeal = mealName;
-  document.getElementById("modal-title").innerText = editIndex > -1 ? `Editar em ${mealName}` : `Adicionar em ${mealName}`;
-  document.getElementById("edit-index").value = editIndex;
+  currentMealId = mealId;
+  const meal = mealsDB.find(m => m.id === mealId);
   
-  if (editIndex > -1) {
-    const item = meals[mealName][editIndex];
-    document.getElementById("food-select").value = item.foodId;
+  document.getElementById("modal-title").innerText = itemId ? `Editar em ${meal.name}` : `Adicionar em ${meal.name}`;
+  document.getElementById("edit-index").value = itemId || "";
+  
+  if (itemId) {
+    const item = mealItemsDB.find(mi => mi.id === itemId);
+    document.getElementById("food-select").value = item.food_id;
     document.getElementById("food-qty").value = item.quantity;
-    const food = foodDB.find(f => f.id === item.foodId);
-    if(food) document.getElementById("unit-label").innerText = food.unit;
+    const food = foodDB.find(f => f.id === item.food_id);
+    if (food) document.getElementById("unit-label").innerText = food.unit;
   } else {
     document.getElementById("food-select").selectedIndex = 0;
-    document.getElementById("food-qty").value = foodDB[0].referenceAmount;
+    document.getElementById("food-qty").value = foodDB[0].reference_amount;
   }
   
   document.getElementById("add-item-modal").style.display = "block";
@@ -108,58 +161,48 @@ function openModal(mealName, editIndex = -1) {
 
 function closeModal() { document.getElementById("add-item-modal").style.display = "none"; }
 
-function saveItem() {
+async function saveItem() {
   const foodId = parseInt(document.getElementById("food-select").value);
   const qty = parseFloat(document.getElementById("food-qty").value);
-  const editIndex = parseInt(document.getElementById("edit-index").value);
+  const itemId = document.getElementById("edit-index").value;
   
   if (!qty || qty <= 0) return alert("Insira uma quantidade válida.");
 
-  const food = foodDB.find(f => f.id === foodId);
-  const ratio = qty / food.referenceAmount;
+  const payload = { meal_id: currentMealId, food_id: foodId, quantity: qty };
 
-  const entry = {
-    foodId: food.id, name: food.name, quantity: qty, unit: food.unit,
-    protein: food.protein * ratio, carbs: food.carbs * ratio,
-    fats: food.fats * ratio, calories: food.calories * ratio
-  };
-
-  if (editIndex > -1) meals[currentMeal][editIndex] = entry;
-  else meals[currentMeal].push(entry);
-
-  saveData();
-  closeModal();
-  renderApp();
-}
-
-function deleteItem(mealName, index) {
-  meals[mealName].splice(index, 1);
-  saveData();
-  renderApp();
-}
-
-// ==========================================
-// BANCO DE ALIMENTOS (CRUD E EXIBIÇÃO)
-// ==========================================
-
-function toggleFoodDB() {
-  const section = document.getElementById("food-db-section");
-  if (section.style.display === "none") {
-    section.style.display = "block";
-    renderFoodDB(); 
+  if (itemId) {
+    await apiRequest(`/meal_items?id=eq.${itemId}`, 'PATCH', payload);
   } else {
-    section.style.display = "none";
+    await apiRequest(`/meal_items`, 'POST', payload);
+  }
+
+  closeModal();
+  await loadData();
+}
+
+async function deleteItem(itemId) {
+  if (confirm("Remover este item da refeição?")) {
+    await apiRequest(`/meal_items?id=eq.${itemId}`, 'DELETE');
+    await loadData();
   }
 }
 
-function openFoodModal(editIndex = -1) {
-  document.getElementById("food-modal-title").innerText = editIndex > -1 ? "Editar Alimento" : "Novo Alimento";
-  document.getElementById("db-edit-index").value = editIndex;
+// ==========================================
+// BANCO DE ALIMENTOS (CRUD API)
+// ==========================================
+function toggleFoodDB() {
+  const section = document.getElementById("food-db-section");
+  section.style.display = section.style.display === "none" ? "block" : "none";
+}
+
+function openFoodModal(foodId = null) {
+  document.getElementById("food-modal-title").innerText = foodId ? "Editar Alimento" : "Novo Alimento";
+  document.getElementById("db-edit-index").value = foodId || "";
   
-  if (editIndex > -1) {
-    const food = foodDB[editIndex];
+  if (foodId) {
+    const food = foodDB.find(f => f.id === foodId);
     document.getElementById("db-food-name").value = food.name;
-    document.getElementById("db-food-ref").value = food.referenceAmount;
+    document.getElementById("db-food-ref").value = food.reference_amount;
     document.getElementById("db-food-unit").value = food.unit;
     document.getElementById("db-food-prot").value = food.protein;
     document.getElementById("db-food-carb").value = food.carbs;
@@ -179,30 +222,7 @@ function openFoodModal(editIndex = -1) {
 
 function closeFoodModal() { document.getElementById("food-modal").style.display = "none"; }
 
-// NOVA FUNÇÃO: Recalcula os itens já adicionados nas refeições quando um alimento do banco é atualizado
-function syncMealsWithFoodDB(updatedFood) {
-  for (const mealName in meals) {
-    meals[mealName] = meals[mealName].map(item => {
-      if (item.foodId === updatedFood.id) {
-        // Se achou um item na dieta que pertence a este alimento editado, recalcula a proporção
-        const ratio = item.quantity / updatedFood.referenceAmount;
-        return {
-          ...item,
-          name: updatedFood.name, // Atualiza o nome (caso o usuário tenha mudado no BD)
-          unit: updatedFood.unit, // Atualiza a unidade
-          protein: updatedFood.protein * ratio,
-          carbs: updatedFood.carbs * ratio,
-          fats: updatedFood.fats * ratio,
-          calories: updatedFood.calories * ratio
-        };
-      }
-      return item;
-    });
-  }
-  renderApp(); // Atualiza a tela de refeições imediatamente
-}
-
-function saveFoodDB() {
+async function saveFoodDB() {
   const name = document.getElementById("db-food-name").value.trim();
   const ref = parseFloat(document.getElementById("db-food-ref").value);
   const unit = document.getElementById("db-food-unit").value;
@@ -210,36 +230,43 @@ function saveFoodDB() {
   const carb = parseFloat(document.getElementById("db-food-carb").value);
   const fat = parseFloat(document.getElementById("db-food-fat").value);
   const cal = parseFloat(document.getElementById("db-food-cal").value);
-  const editIndex = parseInt(document.getElementById("db-edit-index").value);
+  const foodId = document.getElementById("db-edit-index").value;
 
   if (!name || isNaN(ref) || isNaN(prot) || isNaN(carb) || isNaN(fat) || isNaN(cal)) {
-    return alert("Por favor, preencha todos os campos corretamente.");
+    return alert("Preencha todos os campos corretamente.");
   }
 
-  const newFood = {
-    id: editIndex > -1 ? foodDB[editIndex].id : Date.now(),
-    name, unit, referenceAmount: ref, protein: prot, carbs: carb, fats: fat, calories: cal
+  const payload = {
+    name, unit, reference_amount: ref, protein: prot, carbs: carb, fats: fat, calories: cal
   };
 
-  if (editIndex > -1) {
-    foodDB[editIndex] = newFood;
-    syncMealsWithFoodDB(newFood); // Aciona a sincronização das refeições existentes
+  if (foodId) {
+    await apiRequest(`/foods?id=eq.${foodId}`, 'PATCH', payload);
   } else {
-    foodDB.push(newFood);
+    await apiRequest(`/foods`, 'POST', payload);
   }
 
-  saveData();
   closeFoodModal();
-  renderFoodDB();
+  await loadData();
 }
 
-function deleteFood(index) {
-  if (confirm(`Excluir "${foodDB[index].name}" do banco de dados? Os itens que já estão nas refeições não serão removidos automaticamente.`)) {
-    foodDB.splice(index, 1);
-    saveData();
-    renderFoodDB();
+async function deleteFood(foodId, foodName) {
+  // Verifica se o alimento está em uso nas refeições
+  const inUse = mealItemsDB.some(mi => mi.food_id === foodId);
+  if (inUse) {
+    return alert(`Não é possível excluir "${foodName}" porque ele está sendo usado em uma refeição.`);
+  }
+
+  if (confirm(`Excluir "${foodName}" do banco de dados?`)) {
+    await apiRequest(`/foods?id=eq.${foodId}`, 'DELETE');
+    await loadData();
   }
 }
+
+// ==========================================
+// RENDERIZAÇÃO PRINCIPAL (UI e Matemática)
+// ==========================================
+function formatNum(num) { return parseFloat(num).toFixed(1); }
 
 function renderFoodDB() {
   const container = document.getElementById("food-db-container");
@@ -249,107 +276,92 @@ function renderFoodDB() {
     return;
   }
 
-  let html = `
-    <table>
+  let html = `<table>
       <thead>
-        <tr>
-          <th>Alimento</th>
-          <th>Ref.</th>
-          <th>Prot</th>
-          <th>Carb</th>
-          <th>Gord</th>
-          <th>Kcal</th>
-          <th>Ações</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
+        <tr><th>Alimento</th><th>Ref.</th><th>Prot</th><th>Carb</th><th>Gord</th><th>Kcal</th><th>Ações</th></tr>
+      </thead><tbody>`;
 
-  foodDB.forEach((food, index) => {
+  foodDB.forEach((food) => {
     html += `
       <tr>
         <td><strong>${food.name}</strong></td>
-        <td>${food.referenceAmount}${food.unit}</td>
+        <td>${food.reference_amount}${food.unit}</td>
         <td>${food.protein}g</td>
         <td>${food.carbs}g</td>
         <td>${food.fats}g</td>
         <td>${food.calories}</td>
         <td class="actions">
-          <button onclick="openFoodModal(${index})">Editar</button>
-          <button onclick="deleteFood(${index})">Excluir</button>
+          <button onclick="openFoodModal(${food.id})">Editar</button>
+          <button onclick="deleteFood(${food.id}, '${food.name}')">Excluir</button>
         </td>
-      </tr>
-    `;
+      </tr>`;
   });
 
   html += `</tbody></table>`;
   container.innerHTML = html;
 }
 
-// ==========================================
-// RENDERIZAÇÃO PRINCIPAL
-// ==========================================
-
-function formatNum(num) { return parseFloat(num).toFixed(1); }
-
 function renderApp() {
   const container = document.getElementById("meals-container");
   container.innerHTML = "";
   let grandTotals = { protein: 0, carbs: 0, fats: 0, calories: 0 };
-  const mealKeys = Object.keys(meals);
 
-  if (mealKeys.length === 0) {
+  if (mealsDB.length === 0) {
     container.innerHTML = `<div class="empty-state">Nenhuma refeição criada. Adicione uma refeição acima para começar.</div>`;
+    document.getElementById("grand-total-section").innerHTML = "";
+    return;
   }
 
-  mealKeys.forEach(mealName => {
+  mealsDB.forEach(meal => {
     let subTotals = { protein: 0, carbs: 0, fats: 0, calories: 0 };
     
     let html = `
       <div class="meal-section">
         <div class="meal-header">
-          <h2>${mealName}</h2>
+          <h2>${meal.name}</h2>
           <div class="meal-actions">
-            <button class="btn-primary" onclick="openModal('${mealName}')">+ Item</button>
-            <button class="btn-secondary" onclick="editSectionName('${mealName}')">Renomear</button>
-            <button class="btn-danger" onclick="deleteSection('${mealName}')">Excluir</button>
+            <button class="btn-primary" onclick="openModal(${meal.id})">+ Item</button>
+            <button class="btn-secondary" onclick="editSectionName(${meal.id}, '${meal.name}')">Renomear</button>
+            <button class="btn-danger" onclick="deleteSection(${meal.id}, '${meal.name}')">Excluir</button>
           </div>
         </div>
         <table>
           <thead>
-            <tr>
-              <th>Alimento</th>
-              <th>Qtd</th>
-              <th>Proteína</th>
-              <th>Carbos</th>
-              <th>Gordura</th>
-              <th>Calorias</th>
-              <th>Ações</th>
-            </tr>
+            <tr><th>Alimento</th><th>Qtd</th><th>Proteína</th><th>Carbos</th><th>Gordura</th><th>Calorias</th><th>Ações</th></tr>
           </thead>
-          <tbody>
-    `;
+          <tbody>`;
 
-    meals[mealName].forEach((item, index) => {
-      subTotals.protein += item.protein;
-      subTotals.carbs += item.carbs;
-      subTotals.fats += item.fats;
-      subTotals.calories += item.calories;
+    // Filtra os itens desta refeição e faz os cálculos
+    const items = mealItemsDB.filter(mi => mi.meal_id === meal.id);
+    
+    items.forEach(item => {
+      const food = foodDB.find(f => f.id === item.food_id);
+      if (!food) return; // Segurança caso o alimento não exista
+
+      const ratio = item.quantity / food.reference_amount;
+      const prot = food.protein * ratio;
+      const carb = food.carbs * ratio;
+      const fat = food.fats * ratio;
+      const cal = food.calories * ratio;
+
+      subTotals.protein += prot;
+      subTotals.carbs += carb;
+      subTotals.fats += fat;
+      subTotals.calories += cal;
 
       html += `
         <tr>
-          <td>${item.name}</td>
-          <td>${item.quantity}${item.unit}</td>
-          <td>${formatNum(item.protein)}g</td>
-          <td>${formatNum(item.carbs)}g</td>
-          <td>${formatNum(item.fats)}g</td>
-          <td>${formatNum(item.calories)}kcal</td>
+          <td>${food.name}</td>
+          <td>${item.quantity}${food.unit}</td>
+          <td>${formatNum(prot)}g</td>
+          <td>${formatNum(carb)}g</td>
+          <td>${formatNum(fat)}g</td>
+          <td>${formatNum(cal)}kcal</td>
           <td class="actions">
-            <button onclick="openModal('${mealName}', ${index})">Editar</button>
-            <button onclick="deleteItem('${mealName}', ${index})">Remover</button>
+            <button onclick="openModal(${meal.id}, ${item.id})">Editar</button>
+            <button onclick="deleteItem(${item.id})">Remover</button>
           </td>
-        </tr>
-      `;
+        </tr>`;
     });
 
     html += `
@@ -363,8 +375,7 @@ function renderApp() {
           </tr>
           </tbody>
         </table>
-      </div>
-    `;
+      </div>`;
 
     grandTotals.protein += subTotals.protein;
     grandTotals.carbs += subTotals.carbs;
@@ -380,6 +391,5 @@ function renderApp() {
        <strong>Carboidratos:</strong> ${formatNum(grandTotals.carbs)}g &nbsp;|&nbsp; 
        <strong>Gorduras:</strong> ${formatNum(grandTotals.fats)}g &nbsp;|&nbsp; 
        <strong>Calorias:</strong> ${formatNum(grandTotals.calories)}kcal
-    </p>
-  `;
+    </p>`;
 }
