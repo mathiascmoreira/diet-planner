@@ -31,11 +31,11 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   showSpinner();
   const options = { method, headers: HEADERS };
   if (body) options.body = JSON.stringify(body);
-
+  
   try {
     const response = await fetch(`${SUPABASE_URL}${endpoint}`, options);
     if (!response.ok) throw new Error(await response.text());
-
+    
     if (method === 'GET' || response.headers.get('content-length') !== '0') {
       const text = await response.text();
       return text ? JSON.parse(text) : null;
@@ -54,14 +54,14 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 // ==========================================
 document.addEventListener("DOMContentLoaded", async () => {
   await loadData();
-
+  
   document.getElementById("food-select").addEventListener("change", (e) => {
     const foodId = parseInt(e.target.value);
     const food = foodDB.find(f => f.id === foodId);
     if (food) document.getElementById("unit-label").innerText = food.unit;
   });
 
-  document.getElementById("new-section-name").addEventListener("keypress", function (event) {
+  document.getElementById("new-section-name").addEventListener("keypress", function(event) {
     if (event.key === "Enter") {
       event.preventDefault();
       addSection();
@@ -83,7 +83,6 @@ async function loadData() {
 }
 
 async function seedDefaultFoods() {
-  // Preços simulados para a carga inicial
   const defaultFoods = [
     { name: "Peito de Frango", unit: "g", reference_amount: 100, protein: 31, carbs: 0, fats: 3.6, calories: 165, price: 2.50 },
     { name: "Arroz Branco", unit: "g", reference_amount: 100, protein: 2.7, carbs: 28, fats: 0.3, calories: 130, price: 0.60 },
@@ -109,7 +108,7 @@ async function addSection() {
   }
 
   await apiRequest('/meals', 'POST', { name: sectionName });
-  inputEl.value = "";
+  inputEl.value = ""; 
   await loadData();
 }
 
@@ -135,7 +134,7 @@ async function editSectionName(id, oldName) {
 // ==========================================
 function populateFoodDropdown() {
   const select = document.getElementById("food-select");
-  select.innerHTML = foodDB.map(f =>
+  select.innerHTML = foodDB.map(f => 
     `<option value="${f.id}">${f.name} (por ${f.reference_amount}${f.unit})</option>`
   ).join("");
   if (foodDB.length > 0) document.getElementById("unit-label").innerText = foodDB[0].unit;
@@ -146,10 +145,10 @@ function openModal(mealId, itemId = null) {
   populateFoodDropdown();
   currentMealId = mealId;
   const meal = mealsDB.find(m => m.id === mealId);
-
+  
   document.getElementById("modal-title").innerText = itemId ? `Editar em ${meal.name}` : `Adicionar em ${meal.name}`;
   document.getElementById("edit-index").value = itemId || "";
-
+  
   if (itemId) {
     const item = mealItemsDB.find(mi => mi.id === itemId);
     document.getElementById("food-select").value = item.food_id;
@@ -169,7 +168,7 @@ async function saveItem() {
   const foodId = parseInt(document.getElementById("food-select").value);
   const qty = parseFloat(document.getElementById("food-qty").value);
   const itemId = document.getElementById("edit-index").value;
-
+  
   if (!qty || qty <= 0) return alert("Insira uma quantidade válida.");
   const payload = { meal_id: currentMealId, food_id: foodId, quantity: qty };
 
@@ -198,7 +197,7 @@ function toggleFoodDB() {
 function openFoodModal(foodId = null) {
   document.getElementById("food-modal-title").innerText = foodId ? "Editar Alimento" : "Novo Alimento";
   document.getElementById("db-edit-index").value = foodId || "";
-
+  
   if (foodId) {
     const food = foodDB.find(f => f.id === foodId);
     document.getElementById("db-food-name").value = food.name;
@@ -208,7 +207,7 @@ function openFoodModal(foodId = null) {
     document.getElementById("db-food-carb").value = food.carbs;
     document.getElementById("db-food-fat").value = food.fats;
     document.getElementById("db-food-cal").value = food.calories;
-    document.getElementById("db-food-price").value = food.price || 0; // Preço carregado aqui
+    document.getElementById("db-food-price").value = food.price || 0;
   } else {
     document.getElementById("db-food-name").value = "";
     document.getElementById("db-food-ref").value = 100;
@@ -231,7 +230,7 @@ async function saveFoodDB() {
   const carb = parseFloat(document.getElementById("db-food-carb").value);
   const fat = parseFloat(document.getElementById("db-food-fat").value);
   const cal = parseFloat(document.getElementById("db-food-cal").value);
-  const price = parseFloat(document.getElementById("db-food-price").value) || 0; // Captura o preço
+  const price = parseFloat(document.getElementById("db-food-price").value) || 0;
   const foodId = document.getElementById("db-edit-index").value;
 
   if (!name || isNaN(ref) || isNaN(prot) || isNaN(carb) || isNaN(fat) || isNaN(cal)) {
@@ -293,9 +292,13 @@ function renderFoodDB() {
 
 function renderApp() {
   const container = document.getElementById("meals-container");
+  const summaryContainer = document.getElementById("ingredients-summary-container");
+  
   container.innerHTML = "";
-  // Totais Gerais agora rastreiam o preço
+  summaryContainer.innerHTML = "";
+  
   let grandTotals = { protein: 0, carbs: 0, fats: 0, calories: 0, price: 0 };
+  let ingredientSummary = {}; // Guarda a soma das quantidades de cada alimento
 
   if (mealsDB.length === 0) {
     container.innerHTML = `<div class="empty-state">Adicione uma refeição acima para começar.</div>`;
@@ -303,8 +306,8 @@ function renderApp() {
     return;
   }
 
+  // 1. RENDERIZAR REFEIÇÕES E ACUMULAR TOTAIS
   mealsDB.forEach(meal => {
-    // Subtotais da refeição agora rastreiam o preço
     let subTotals = { protein: 0, carbs: 0, fats: 0, calories: 0, price: 0 };
     let html = `
       <div class="meal-section">
@@ -328,12 +331,18 @@ function renderApp() {
       const food = foodDB.find(f => f.id === item.food_id);
       if (!food) return;
 
+      // Soma a quantidade deste alimento para a tabela de resumo
+      if (!ingredientSummary[item.food_id]) {
+        ingredientSummary[item.food_id] = 0;
+      }
+      ingredientSummary[item.food_id] += item.quantity;
+
       const ratio = item.quantity / food.reference_amount;
       const prot = food.protein * ratio;
       const carb = food.carbs * ratio;
       const fat = food.fats * ratio;
       const cal = food.calories * ratio;
-      const price = (food.price || 0) * ratio; // Cálculo do preço proporcional
+      const price = (food.price || 0) * ratio;
 
       subTotals.protein += prot; subTotals.carbs += carb;
       subTotals.fats += fat; subTotals.calories += cal; subTotals.price += price;
@@ -368,7 +377,49 @@ function renderApp() {
     container.innerHTML += html;
   });
 
-  // Mostrando o custo no painel total inferior
+  // 2. RENDERIZAR TABELA DE RESUMO DE INGREDIENTES
+  if (Object.keys(ingredientSummary).length > 0) {
+    let summaryHtml = `
+      <div class="meal-section summary-section">
+        <div class="meal-header">
+          <h2>Quantidade Total de Ingredientes</h2>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr><th>Alimento</th><th>Qtd Total</th><th>Proteína</th><th>Carbos</th><th>Gordura</th><th>Calorias</th><th>Custo Total</th></tr>
+            </thead>
+            <tbody>`;
+
+    for (const foodIdStr in ingredientSummary) {
+      const foodId = parseInt(foodIdStr);
+      const totalQty = ingredientSummary[foodId];
+      const food = foodDB.find(f => f.id === foodId);
+      if (!food) continue;
+
+      const ratio = totalQty / food.reference_amount;
+      const prot = food.protein * ratio;
+      const carb = food.carbs * ratio;
+      const fat = food.fats * ratio;
+      const cal = food.calories * ratio;
+      const price = (food.price || 0) * ratio;
+
+      summaryHtml += `<tr>
+          <td><strong>${food.name}</strong></td>
+          <td>${totalQty}${food.unit}</td>
+          <td>${formatNum(prot)}g</td>
+          <td>${formatNum(carb)}g</td>
+          <td>${formatNum(fat)}g</td>
+          <td>${formatNum(cal)}kcal</td>
+          <td>${formatCurrency(price)}</td>
+        </tr>`;
+    }
+
+    summaryHtml += `</tbody></table></div></div>`;
+    summaryContainer.innerHTML = summaryHtml;
+  }
+
+  // 3. RENDERIZAR TOTAL GERAL
   document.getElementById("grand-total-section").innerHTML = `
     <h2>Total Geral Diário</h2>
     <p style="margin-bottom: 10px;">

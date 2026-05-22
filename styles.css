@@ -28,6 +28,12 @@ header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px
 .db-toggle-container { text-align: center; margin-top: 30px; margin-bottom: 10px; }
 .food-db-section { background: #fdfdfd; border-top: 4px solid #007bff; margin-top: 10px; }
 
+/* Nova cor para a tabela de Resumo de Ingredientes */
+.summary-section { background-color: #f0f8ff; border-color: #b8daff; }
+.summary-section .meal-header { border-bottom-color: #b8daff; }
+.summary-section h2 { color: #0056b3; }
+.summary-section th { background-color: #e6f2ff; }
+
 .meal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
 .meal-header h2 { margin: 0; color: #2c3e50; font-size: 1.2rem; }
 .meal-actions button { margin-left: 5px; margin-bottom: 5px; }
@@ -78,6 +84,6 @@ th { background-color: #f9f9f9; font-weight: 600; }
   .meal-header { flex-direction: column; align-items: flex-start; gap: 10px; }
   .meal-actions { display: flex; flex-wrap: wrap; width: 100%; gap: 5px; }
   .meal-actions button { margin-left: 0; flex: 1; text-align: center; }
-  table { min-width: 500px; /* Força barra de rolagem horizontal em telas minúsculas */ }
+  table { min-width: 500px; }
   .grand-total-section p { display: flex; flex-direction: column; gap: 5px; }
 }

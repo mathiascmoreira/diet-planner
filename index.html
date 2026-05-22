@@ -1,13 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Planejador de Dieta</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
   <!-- Overlay de Carregamento (Spinner) -->
   <div id="loading-spinner" class="spinner-overlay" style="display: none;">
@@ -18,16 +16,19 @@
     <header>
       <h1>Planejador de Dieta Diário</h1>
     </header>
-
+    
     <!-- Criador de Seções -->
     <div class="add-section-container">
       <input type="text" id="new-section-name" placeholder="Nome da Refeição (ex: Almoço)">
       <button class="btn-primary" onclick="addSection()">+ Criar Refeição</button>
     </div>
-
+    
     <!-- As seções de refeição serão injetadas aqui -->
     <main id="meals-container"></main>
 
+    <!-- Resumo Total de Ingredientes -->
+    <div id="ingredients-summary-container"></div>
+    
     <!-- Totais Gerais -->
     <section class="grand-total-section" id="grand-total-section"></section>
 
@@ -56,17 +57,17 @@
     <div class="modal-content">
       <span class="close-btn" onclick="closeModal()">&times;</span>
       <h2 id="modal-title">Adicionar Item</h2>
-
+      
       <div class="form-group">
         <label for="food-select">Selecionar Alimento:</label>
         <select id="food-select"></select>
       </div>
-
+      
       <div class="form-group">
         <label for="food-qty">Quantidade (<span id="unit-label">g</span>):</label>
         <input type="number" id="food-qty" min="1" step="1" value="100">
       </div>
-
+      
       <input type="hidden" id="edit-index" value="-1">
       <button onclick="saveItem()" class="btn-primary" style="width: 100%;">Salvar Alimento na Refeição</button>
     </div>
@@ -77,7 +78,7 @@
     <div class="modal-content">
       <span class="close-btn" onclick="closeFoodModal()">&times;</span>
       <h2 id="food-modal-title">Novo Alimento</h2>
-
+      
       <div class="form-group">
         <label>Nome do Alimento:</label>
         <input type="text" id="db-food-name" placeholder="Ex: Batata Doce">
@@ -120,7 +121,7 @@
           <input type="number" id="db-food-price" step="0.01" value="0">
         </div>
       </div>
-
+      
       <input type="hidden" id="db-edit-index" value="-1">
       <button onclick="saveFoodDB()" class="btn-primary" style="width: 100%;">Salvar no Banco</button>
     </div>
@@ -128,5 +129,4 @@
 
   <script src="script.js"></script>
 </body>
-
 </html>
